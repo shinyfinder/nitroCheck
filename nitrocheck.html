@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Nitro Scam Checker</title>
+	<script type="text/javascript">
+		var ctrl = ["discord", "cdn.discordapp"];
+
+		function scamCheck() {
+			var input = document.getElementById("urlIn").value;
+      var scamRating = 0;
+
+			// extract the domain from the entered URL
+			var matches = input.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
+			var domain = matches && matches[1];  // domain will be null if no match is found
+			///To prevent specific domains from matching, use a negative lookahead.
+			//^https?\:\/\/(?!(?:www\.)?(?:youtube\.com|youtu\.be))([^\/:?#]+)(?:[\/:?#]|$)/i
+
+      // remove everything after the last period (i.e. the domain extension)
+      domain = domain.split(".");
+      let domExt = domain.pop();
+      domain = domain.join(".");
+
+      // check if entered domain matches controls exactly
+      let isIn = ctrl.includes(domain);
+      if (isIn) {
+        document.getElementById("output").innerHTML = "Exact Match";
+        isScam(scamRating);
+      } else {
+        document.getElementById("output").innerHTML = "Typo";
+        // if there's a typo, see how close it is
+        // realistically, you're not going to need to check a cdn.discordapp
+        // first, compute the LCS comparing against "discord"
+        let LCSPhrase = LCS(domain,ctrl[0]);
+        let LCSLength = LCSPhrase.length;
+        
+
+        // weight the result such that if it contains a large portion of the exact phrase, it's prob not legit.
+        console.log(LCSPhrase);
+        if (LCSLength >= 0.7*ctrl[0].length) {
+            LCSScore = 2;
+          } else {
+            LCSScore = 0.2;
+          }
+
+        // figure out how many subs it is to the real thing using LD.
+        // this prob isn't necessary, but it gives us another nob to finetune. 
+        console.log(LCSScore);
+        let levScore = levDist(domain,ctrl[0]);
+        // if the LD is really big, it's prob a shortened/unrelated URL
+        console.log(levScore);
+        if (levScore > 0.8*ctrl[0].length) {
+          scamRating = 1*LCSScore/levScore;
+        } else {
+          scamRating = 1*LCSScore*levScore;
+        }
+
+        
+        console.log(scamRating);
+        isScam(scamRating);
+      }
+			
+		}
+
+		function isScam(value) {
+			if (value <= 1.5) {
+				document.getElementById("output").innerHTML = "No";
+
+			} else {
+				document.getElementById("output").innerHTML = "Yes";
+			}
+		}
+
+
+		// Levenshtein distance algo
+		var levDist = function(s, t) {
+   			var d = []; //2d matrix
+
+    		// Step 1
+    		var n = s.length;
+    		var m = t.length;
+
+    		if (n == 0) {
+    			return m;
+    		}
+    		if (m == 0) {
+    			return n;
+    		}
+
+    		//Create an array of arrays in javascript (a descending loop is quicker)
+    		for (var i = n; i >= 0; i--) {
+    			d[i] = [];
+    		}
+
+    		// Step 2
+    		for (var i = n; i >= 0; i--) {
+    			d[i][0] = i;
+    		}
+    		for (var j = m; j >= 0; j--) {
+    			d[0][j] = j;
+    		}
+
+    		// Step 3
+    		for (var i = 1; i <= n; i++) {
+    			var s_i = s.charAt(i - 1);
+
+        	// Step 4
+        	for (var j = 1; j <= m; j++) {
+
+            //Check the jagged ld total so far
+            if (i == j && d[i][j] > 4) return n;
+
+            var t_j = t.charAt(j - 1);
+            var cost = (s_i == t_j) ? 0 : 1; // Step 5
+
+            //Calculate the minimum
+            var mi = d[i - 1][j] + 1;
+            var b = d[i][j - 1] + 1;
+            var c = d[i - 1][j - 1] + cost;
+
+            if (b < mi) mi = b;
+            if (c < mi) mi = c;
+
+            d[i][j] = mi; // Step 6
+
+            //Damerau transposition
+            if (i > 2 && j > 2 && s_i == t.charAt(j - 2) && s.charAt(i - 2) == t_j) {
+            	d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + cost);
+            }
+        }
+    }
+
+    // Step 7
+    return d[n][m];
+
+}
+
+
+
+  /**
+     * Algorithm from dynamic programming. It finds the longest
+     * common sub-sequence of two strings. For example for strings 'abcd'
+     * and 'axxcda' the longest common sub-sequence is 'acd'.
+     *
+     * @example
+     * var subsequence = require('path-to-algorithms/src/searching/'+
+     * 'longest-common-subsequence').longestCommonSubsequence;
+     * console.log(subsequence('abcd', 'axxcda'); // 'acd'
+     *
+     * @public
+     * @module searching/longest-common-subsequence
+     * @param {String} first input string.
+     * @param {String} second input string.
+     * @return {Array} Longest common subsequence.
+     */
+
+     function LCS(str1, str2) {
+     	var lcsLengthsMatrix = getLcsLengths(str1, str2);
+     	return getLcs(str1, str2, lcsLengthsMatrix);
+     };
+
+    /**
+     * Find the lengths of longest common sub-sequences
+     * of two strings and their substrings.
+     *
+     * Complexity: O(MN).
+     *
+     * @private
+     * @param {String} first string
+     * @param {String} second string
+     * @return {Array} two dimensional array with LCS
+     * lengths of input strings and their substrings.
+     *
+     */
+
+     function getLcsLengths(str1, str2) {
+     	var result = [];
+
+     	for (var i = -1; i < str1.length; i = i + 1) {
+     		result[i] = [];
+
+     		for (var j = -1; j < str2.length; j = j + 1) {
+     			if (i === -1 || j === -1) {
+     				result[i][j] = 0;
+
+     			} else if (str1[i] === str2[j]) {
+     				result[i][j] = result[i - 1][j - 1] + 1;
+
+     			} else {
+     				result[i][j] = Math.max(result[i - 1][j], result[i][j - 1]);
+     			}
+     		}
+     	}
+     	return result;
+     }
+
+    /**
+     * Find longest common sub-sequences of two strings.
+     *
+     * Complexity: O(M + N).
+     *
+     * @private
+     * @param {String} first string
+     * @param {String} second string
+     * @return {Array} two dimensional array with LCS
+     * lengths of input strings and their substrings
+     * returned from 'getLcsLengths' function.
+     *
+     */
+
+     function getLcs(str1, str2, lcsLengthsMatrix) {
+     	var execute = function (i, j) {
+
+     		if (!lcsLengthsMatrix[i][j]) {
+     			return '';
+
+     		} else if (str1[i] === str2[j]) {
+     			return execute(i - 1, j - 1) + str1[i];
+
+     		} else if (lcsLengthsMatrix[i][j - 1] > lcsLengthsMatrix[i - 1][j]) {
+     			return execute(i, j - 1);
+
+     		} else {
+     			return execute(i - 1, j);
+     		}
+     	};
+     	return execute(str1.length - 1, str2.length - 1);
+     }
+</script>
+</head>
+
+<body>
+	<form>
+		<label for="url">Enter the URL:</label>
+		<input type="text" name="urlIn" id="urlIn">
+		
+		<br />
+		<button type="button" onclick="scamCheck()">Convert!</button>
+	</form>
+</body>
+
+<p>Is scam: <span id="output"></span></p>
+</html>
