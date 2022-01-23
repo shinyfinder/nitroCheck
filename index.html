@@ -5,30 +5,41 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Nitro Scam Checker</title>
 	<script type="text/javascript">
-		var ctrl = ["discord", "cdn.discordapp"];
+		const ctrl = ["discord", "cdn.discordapp", "store.steampowered", "steamdb"]; //whitelist
+    const banList = ["nitro", "steam"]; // blacklist
+
 
 		function scamCheck() {
 			var input = document.getElementById("urlIn").value;
       var scamRating = 0;
+      var banMathed = 0;
 
 			// extract the domain from the entered URL
-			var matches = input.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
+			var matches = input.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n?]+)/im);
 			var domain = matches && matches[1];  // domain will be null if no match is found
 			///To prevent specific domains from matching, use a negative lookahead.
 			//^https?\:\/\/(?!(?:www\.)?(?:youtube\.com|youtu\.be))([^\/:?#]+)(?:[\/:?#]|$)/i
-
+      
       // remove everything after the last period (i.e. the domain extension)
       domain = domain.split(".");
       let domExt = domain.pop();
       domain = domain.join(".");
+      
 
       // check if entered domain matches controls exactly
       let isIn = ctrl.includes(domain);
       if (isIn) {
-        document.getElementById("output").innerHTML = "Exact Match";
+        
         isScam(scamRating);
       } else {
-        document.getElementById("output").innerHTML = "Typo";
+        
+        // first check against banlist. If it's found, it's potentially a scam
+        for (var i = banList.length - 1; i >= 0; i--) {
+          if (LCS(banList[i],domain).length == banList[i].length) {
+            banMathed = 120;
+          }
+        }
+        console.log(scamRating);
         // if there's a typo, see how close it is
         // realistically, you're not going to need to check a cdn.discordapp
         // first, compute the LCS comparing against "discord"
@@ -51,13 +62,13 @@
         // if the LD is really big, it's prob a shortened/unrelated URL
         console.log(levScore);
         if (levScore > 0.8*ctrl[0].length) {
-          scamRating = 1*LCSScore/levScore;
+          scamRating = 1*LCSScore/levScore*banMathed;
         } else {
-          scamRating = 1*LCSScore*levScore;
+          scamRating = 1*LCSScore*levScore*banMathed;
         }
 
         
-        //console.log(scamRating);
+        console.log(scamRating);
         isScam(scamRating);
       }
 			
